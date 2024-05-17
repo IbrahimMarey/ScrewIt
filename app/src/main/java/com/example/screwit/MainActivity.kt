@@ -13,11 +13,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -28,6 +30,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -70,6 +74,10 @@ class MainActivity : ComponentActivity() {
 fun HomeScreen(viewModel: ItemViewModel = viewModel()) {
     var itemCount by remember { mutableStateOf(1) }
     val counts = remember { mutableStateListOf<Int>() }
+    var showDialog by remember { mutableStateOf(false) }
+    var newItemText by remember { mutableStateOf("") }
+    val itemNames = remember { mutableStateListOf<String>() }
+
 
     Scaffold(
         topBar = {
@@ -78,8 +86,7 @@ fun HomeScreen(viewModel: ItemViewModel = viewModel()) {
                 title = { Text("ScrewScore", color = Color.White) },
                 actions = {
                     IconButton(onClick = {
-                        itemCount++
-                        counts.add(0)
+                        showDialog = true
                     }) {
                         Icon(
                             imageVector = Icons.Filled.Add,
@@ -95,6 +102,7 @@ fun HomeScreen(viewModel: ItemViewModel = viewModel()) {
                 BodyContent(
                     modifier = Modifier.padding(innerPadding),
                     counts = counts,
+                    itemNames = itemNames,
                     onIncrement = { index ->
                         if (counts[index] < Int.MAX_VALUE) {
                             counts[index]++
@@ -109,6 +117,48 @@ fun HomeScreen(viewModel: ItemViewModel = viewModel()) {
             }
         }
     )
+
+
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text(text = "Confirm Action") },
+            text = {
+                Column {
+                    Text("Enter item details:")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextField(
+                        value = newItemText,
+                        onValueChange = { newItemText = it },
+                        label = { Text("Item Name") },
+                        singleLine = true
+                    )
+                }
+            }
+            ,confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (newItemText.isNotBlank()) {
+                            itemCount++
+                            counts.add(0)
+                            itemNames.add(newItemText)
+                            newItemText = ""
+                            showDialog = false
+                        }
+                    }
+                ) {
+                    Text("Confirm")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDialog = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 
@@ -132,6 +182,7 @@ fun MeasureTopAppBarHeight(
 fun BodyContent(
     modifier: Modifier = Modifier,
     counts: List<Int>,
+    itemNames: List<String>,
     onDecrement: (Int) -> Unit,
     onIncrement: (Int) -> Unit,
     viewModel: ItemViewModel = viewModel()
@@ -155,7 +206,7 @@ fun BodyContent(
                             .padding(2.dp)
                     ) {
                         Text(
-                            text = "Name $index",
+                            text = itemNames.getOrNull(index) ?: "Name $index",
                             modifier = Modifier.padding(16.dp),
                             fontSize = 18.sp,
                             color = Color.White,
