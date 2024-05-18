@@ -2,9 +2,11 @@ package com.example.screwit
 
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,10 +17,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -44,23 +49,35 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.screwit.ui.theme.Pink40
+import com.example.screwit.ui.theme.ScrewItTheme
+import com.github.skydoves.colorpicker.compose.ColorEnvelope
+import com.github.skydoves.colorpicker.compose.ColorPickerController
+import com.github.skydoves.colorpicker.compose.HsvColorPicker
+import com.github.skydoves.colorpicker.compose.rememberColorPickerController
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    HomeScreen()
+                colorResource(id = R.color.black)
+                ScrewItTheme (true){
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(color = Color.Black),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        HomeScreen()
+                    }
                 }
             }
         }
@@ -76,14 +93,16 @@ fun HomeScreen(viewModel: ItemViewModel = viewModel()) {
     val counts = remember { mutableStateListOf<Int>() }
     var showDialog by remember { mutableStateOf(false) }
     var newItemText by remember { mutableStateOf("") }
-    val itemNames = remember { mutableStateListOf<String>() }
+//    val itemNames = remember { mutableStateListOf<String>() }
 
 
     Scaffold(
-        topBar = {
+        Modifier.background(color = Color.Black),
+                topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.smallTopAppBarColors(containerColor = Pink40),
-                title = { Text("ScrewScore", color = Color.White) },
+
+                colors = TopAppBarDefaults.smallTopAppBarColors(containerColor = Color(0,0,0,3)),
+                title = { Text("Screw Score", color = Color.White) },
                 actions = {
                     IconButton(onClick = {
                         showDialog = true
@@ -102,7 +121,7 @@ fun HomeScreen(viewModel: ItemViewModel = viewModel()) {
                 BodyContent(
                     modifier = Modifier.padding(innerPadding),
                     counts = counts,
-                    itemNames = itemNames,
+                    itemNames = viewModel.itemNames,
                     onIncrement = { index ->
                         if (counts[index] < Int.MAX_VALUE) {
                             counts[index]++
@@ -116,6 +135,7 @@ fun HomeScreen(viewModel: ItemViewModel = viewModel()) {
                 )
             }
         }
+
     )
 
 
@@ -141,7 +161,7 @@ fun HomeScreen(viewModel: ItemViewModel = viewModel()) {
                         if (newItemText.isNotBlank()) {
                             itemCount++
                             counts.add(0)
-                            itemNames.add(newItemText)
+                            viewModel.itemNames.add(newItemText)
                             newItemText = ""
                             showDialog = false
                         }
@@ -187,6 +207,12 @@ fun BodyContent(
     onIncrement: (Int) -> Unit,
     viewModel: ItemViewModel = viewModel()
 ) {
+    var showDialog by remember { mutableStateOf(false) }
+    var newItemTextAfter by remember { mutableStateOf("") }
+    val newItemNames = remember { mutableStateListOf<String>() }
+    var clickIndexItemToEdit = remember {
+      mutableStateOf(0)
+    }
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -199,20 +225,33 @@ fun BodyContent(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column {
-                    Box(
+                    Row(
+
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(viewModel.getColorForItem(index))
-                            .padding(2.dp)
+                            .padding(horizontal = 16.dp, vertical = 2.dp)
+
                     ) {
-                        Text(
-                            text = itemNames.getOrNull(index) ?: "Name $index",
-                            modifier = Modifier.padding(16.dp),
-                            fontSize = 18.sp,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                            Text(
+                                text = itemNames.getOrNull(index) ?: "Name $index",
+                                modifier = Modifier.padding(16.dp),
+                                fontSize = 18.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        IconButton(onClick = {
+                            clickIndexItemToEdit.value = index
+                            showDialog = true
+                        }) {
+                            Icon(
+                                imageVector = Icons.Filled.Edit,
+                                contentDescription = "Edit Color",
+                                tint = Color.White
+                            )
+                        }
+                        }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
@@ -272,6 +311,67 @@ fun BodyContent(
                 }
             }
         }
+    }
+
+    if (showDialog) {
+        newItemTextAfter = itemNames.get(index = clickIndexItemToEdit.value)
+        var color = remember {
+            viewModel.getColorForItem(clickIndexItemToEdit.value)
+        }
+        val controller : ColorPickerController = ColorPickerController()
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text(text = "Edi") },
+            text = {
+                Column {
+                    Text("Enter item details:")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextField(
+                        value = newItemTextAfter,
+                        onValueChange = {
+                            newItemTextAfter = it
+                            viewModel.itemNames[clickIndexItemToEdit.value] = newItemTextAfter
+                                        },
+                        label = { Text("Item Name") },
+                        singleLine = true
+                    )
+
+                    HsvColorPicker(
+
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(450.dp)
+                            .padding(10.dp),
+                        controller = controller,
+                        onColorChanged = { colorEnvelope: ColorEnvelope ->
+                            color = colorEnvelope.color
+                        }
+                    )
+                }
+            }
+            ,confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (newItemTextAfter.isNotBlank()) {
+                            newItemNames.add(newItemTextAfter)
+                            newItemTextAfter = ""
+                            if(color != Color(0, 0, 0, 0))
+                                viewModel.editColor(clickIndexItemToEdit.value,color)
+                            showDialog = false
+                        }
+                    }
+                ) {
+                    Text("Confirm")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDialog = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
