@@ -2,11 +2,10 @@ package com.example.screwit
 
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,9 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -40,6 +37,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -48,24 +46,37 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.colorResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.screwit.ui.theme.Pink40
+import com.example.screwit.data.IScrewLocalDataSource
+import com.example.screwit.data.ScrewLocalDataSource
+import com.example.screwit.database.ScrewDatabase
+import com.example.screwit.model.PlayerModel
 import com.example.screwit.ui.theme.ScrewItTheme
+import com.example.screwit.view_model.ItemViewModel
 import com.github.skydoves.colorpicker.compose.ColorEnvelope
 import com.github.skydoves.colorpicker.compose.ColorPickerController
 import com.github.skydoves.colorpicker.compose.HsvColorPicker
-import com.github.skydoves.colorpicker.compose.rememberColorPickerController
 
 class MainActivity : ComponentActivity() {
+    private lateinit var localDataSource: IScrewLocalDataSource
+
+    private val viewModel: ItemViewModel by viewModels {
+        ItemViewModel.provideFactory(localDataSource)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        localDataSource = ScrewLocalDataSource(ScrewDatabase.getDatabase(context = this).playerDao())
+
         setContent {
             MaterialTheme {
                 colorResource(id = R.color.black)
@@ -76,31 +87,32 @@ class MainActivity : ComponentActivity() {
                             .background(color = Color.Black),
                         color = MaterialTheme.colorScheme.background
                     ) {
-                        HomeScreen()
+                        HomeScreen(viewModel = viewModel)
                     }
                 }
             }
         }
+
     }
 }
 
 
-@Preview(showSystemUi = true)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(viewModel: ItemViewModel = viewModel()) {
+fun HomeScreen(viewModel: ItemViewModel) {
     var itemCount by remember { mutableStateOf(1) }
-    val counts = remember { mutableStateListOf<Int>() }
+    var counts = remember { mutableStateListOf<Int>() }
     var showDialog by remember { mutableStateOf(false) }
     var newItemText by remember { mutableStateOf("") }
-//    val itemNames = remember { mutableStateListOf<String>() }
 
+    LaunchedEffect(Unit) {
+        viewModel.getAllPlayers()
+    }
 
     Scaffold(
         Modifier.background(color = Color.Black),
                 topBar = {
             TopAppBar(
-
                 colors = TopAppBarDefaults.smallTopAppBarColors(containerColor = Color(0,0,0,3)),
                 title = { Text("Screw Score", color = Color.White) },
                 actions = {
@@ -121,6 +133,7 @@ fun HomeScreen(viewModel: ItemViewModel = viewModel()) {
                 BodyContent(
                     modifier = Modifier.padding(innerPadding),
                     counts = counts,
+                    playerList = viewModel.playerList,
                     itemNames = viewModel.itemNames,
                     onIncrement = { index ->
                         if (counts[index] < Int.MAX_VALUE) {
@@ -131,7 +144,8 @@ fun HomeScreen(viewModel: ItemViewModel = viewModel()) {
                         if (counts[index] > 0) {
                             counts[index]--
                         }
-                    }
+                    },
+                    viewModel = viewModel
                 )
             }
         }
@@ -142,15 +156,15 @@ fun HomeScreen(viewModel: ItemViewModel = viewModel()) {
     if (showDialog) {
         AlertDialog(
             onDismissRequest = { showDialog = false },
-            title = { Text(text = "Confirm Action") },
+            title = { Text(text = "Add Player") },
             text = {
                 Column {
-                    Text("Enter item details:")
+                    Text("Enter name:")
                     Spacer(modifier = Modifier.height(8.dp))
                     TextField(
                         value = newItemText,
                         onValueChange = { newItemText = it },
-                        label = { Text("Item Name") },
+                        label = { Text("Name") },
                         singleLine = true
                     )
                 }
@@ -198,6 +212,7 @@ fun MeasureTopAppBarHeight(
         content()
     }
 }
+
 @Composable
 fun BodyContent(
     modifier: Modifier = Modifier,
@@ -205,7 +220,8 @@ fun BodyContent(
     itemNames: List<String>,
     onDecrement: (Int) -> Unit,
     onIncrement: (Int) -> Unit,
-    viewModel: ItemViewModel = viewModel()
+    viewModel: ItemViewModel,
+    playerList: List<PlayerModel>,
 ) {
     var showDialog by remember { mutableStateOf(false) }
     var newItemTextAfter by remember { mutableStateOf("") }
@@ -220,22 +236,36 @@ fun BodyContent(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(counts.size) { index ->
+            val player = PlayerModel(
+                index
+                ,itemNames.get(index),
+                0,
+                viewModel.getColorForItem(index).toArgb()
+            )
+
+            viewModel.insertPlayer(
+                PlayerModel(
+                    name = player.name,
+                    color = player.color,
+                    score = counts[index]
+                )
+            )
+
             Card(
                 shape = RoundedCornerShape(20.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column {
                     Row(
-
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(viewModel.getColorForItem(index))
+                            .background(Color(player.color) /*viewModel.getColorForItem(index)*/)
                             .padding(horizontal = 16.dp, vertical = 2.dp)
 
                     ) {
                             Text(
-                                text = itemNames.getOrNull(index) ?: "Name $index",
+                                text = player.name /*itemNames.getOrNull(index)*/ ?: "Name $index",
                                 modifier = Modifier.padding(16.dp),
                                 fontSize = 18.sp,
                                 color = Color.White,
@@ -321,10 +351,10 @@ fun BodyContent(
         val controller : ColorPickerController = ColorPickerController()
         AlertDialog(
             onDismissRequest = { showDialog = false },
-            title = { Text(text = "Edi") },
+            title = { Text(text = "Edit") },
             text = {
                 Column {
-                    Text("Enter item details:")
+                    Text("Enter name:")
                     Spacer(modifier = Modifier.height(8.dp))
                     TextField(
                         value = newItemTextAfter,
@@ -332,12 +362,11 @@ fun BodyContent(
                             newItemTextAfter = it
                             viewModel.itemNames[clickIndexItemToEdit.value] = newItemTextAfter
                                         },
-                        label = { Text("Item Name") },
+                        label = { Text("Name") },
                         singleLine = true
                     )
 
                     HsvColorPicker(
-
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(450.dp)
