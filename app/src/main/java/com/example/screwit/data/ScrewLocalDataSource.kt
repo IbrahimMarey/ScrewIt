@@ -25,4 +25,8 @@ class ScrewLocalDataSource(val playerDao : PlayerDao) : IScrewLocalDataSource {
     override suspend fun getPlayerByName(playerName: String): PlayerModel? {
         return playerDao.getPlayerByName(playerName)
     }
+
+    override suspend fun updatePlayer(player: PlayerModel) {
+        playerDao.update(player)
+    }
 }

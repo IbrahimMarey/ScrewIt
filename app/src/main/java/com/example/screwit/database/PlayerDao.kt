@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Update
 import com.example.screwit.model.PlayerModel
 
 @Dao
@@ -24,4 +25,8 @@ interface PlayerDao {
 
    @Query("SELECT * FROM player WHERE name = :playerName LIMIT 1")
    suspend fun getPlayerByName(playerName: String): PlayerModel?
+
+   @Update
+   suspend fun update(player: PlayerModel)
+
 }

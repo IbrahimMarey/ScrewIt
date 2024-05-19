@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,11 +17,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -38,6 +44,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -45,11 +52,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -96,24 +106,18 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(viewModel: ItemViewModel) {
-    var itemCount by remember { mutableStateOf(1) }
-    var counts = remember { mutableStateListOf<Int>() }
     var showDialog by remember { mutableStateOf(false) }
     var newItemText by remember { mutableStateOf("") }
-
-    LaunchedEffect(Unit) {
-        viewModel.getAllPlayers()
-    }
+    val playerList by viewModel.playerList.collectAsState()
 
     Scaffold(
         Modifier.background(color = Color.Black),
-                topBar = {
+        topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.smallTopAppBarColors(containerColor = Color(0,0,0,3)),
+                colors = TopAppBarDefaults.smallTopAppBarColors(containerColor = Color(0, 0, 0, 3)),
                 title = { Text("Screw Score", color = Color.White) },
                 actions = {
                     IconButton(onClick = {
@@ -132,26 +136,18 @@ fun HomeScreen(viewModel: ItemViewModel) {
             MeasureTopAppBarHeight {
                 BodyContent(
                     modifier = Modifier.padding(innerPadding),
-                    counts = counts,
-                    playerList = viewModel.playerList,
-                    itemNames = viewModel.itemNames,
-                    onIncrement = { index ->
-                        if (counts[index] < Int.MAX_VALUE) {
-                            counts[index]++
-                        }
+                    playerList = playerList,
+                    onIncrement = { player ->
+                        viewModel.incrementScore(player)
                     },
-                    onDecrement = { index ->
-                        if (counts[index] > 0) {
-                            counts[index]--
-                        }
+                    onDecrement = { player ->
+                        viewModel.decrementScore(player)
                     },
                     viewModel = viewModel
                 )
             }
         }
-
     )
-
 
     if (showDialog) {
         AlertDialog(
@@ -168,14 +164,12 @@ fun HomeScreen(viewModel: ItemViewModel) {
                         singleLine = true
                     )
                 }
-            }
-            ,confirmButton = {
+            },
+            confirmButton = {
                 TextButton(
                     onClick = {
                         if (newItemText.isNotBlank()) {
-                            itemCount++
-                            counts.add(0)
-                            viewModel.itemNames.add(newItemText)
+                            viewModel.addPlayer(newItemText)
                             newItemText = ""
                             showDialog = false
                         }
@@ -212,44 +206,26 @@ fun MeasureTopAppBarHeight(
         content()
     }
 }
-
 @Composable
 fun BodyContent(
     modifier: Modifier = Modifier,
-    counts: List<Int>,
-    itemNames: List<String>,
-    onDecrement: (Int) -> Unit,
-    onIncrement: (Int) -> Unit,
-    viewModel: ItemViewModel,
     playerList: List<PlayerModel>,
+    onDecrement: (PlayerModel) -> Unit,
+    onIncrement: (PlayerModel) -> Unit,
+    viewModel: ItemViewModel
 ) {
     var showDialog by remember { mutableStateOf(false) }
-    var newItemTextAfter by remember { mutableStateOf("") }
-    val newItemNames = remember { mutableStateListOf<String>() }
-    var clickIndexItemToEdit = remember {
-      mutableStateOf(0)
-    }
+    var editPlayer: PlayerModel? by remember { mutableStateOf(null) }
+    var showEditScoreDialog by remember { mutableStateOf(false) }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(counts.size) { index ->
-            val player = PlayerModel(
-                index
-                ,itemNames.get(index),
-                0,
-                viewModel.getColorForItem(index).toArgb()
-            )
-
-            viewModel.insertPlayer(
-                PlayerModel(
-                    name = player.name,
-                    color = player.color,
-                    score = counts[index]
-                )
-            )
+        items(playerList.size) { index ->
+            val player = playerList[index]
 
             Card(
                 shape = RoundedCornerShape(20.dp),
@@ -260,19 +236,35 @@ fun BodyContent(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(player.color) /*viewModel.getColorForItem(index)*/)
+                            .background(Color(player.color))
                             .padding(horizontal = 16.dp, vertical = 2.dp)
-
                     ) {
-                            Text(
-                                text = player.name /*itemNames.getOrNull(index)*/ ?: "Name $index",
-                                modifier = Modifier.padding(16.dp),
-                                fontSize = 18.sp,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
-                            )
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .background(Color.White, shape = CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(R.drawable.man),
+                                    contentDescription = "Player Avatar",
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = player.name,
+                            modifier = Modifier.padding(16.dp),
+                            fontSize = 18.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )}
                         IconButton(onClick = {
-                            clickIndexItemToEdit.value = index
+                            editPlayer = player
                             showDialog = true
                         }) {
                             Icon(
@@ -281,17 +273,19 @@ fun BodyContent(
                                 tint = Color.White
                             )
                         }
-                        }
+                    }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier
                             .padding(0.dp)
                             .fillMaxWidth()
                             .background(Color.DarkGray)
+                            .height(105.dp)
                     ) {
                         Button(
-                            onClick = { onDecrement(index) },
-                            enabled = counts[index] > 0,
+                            onClick = { onDecrement(player) },
+                            //enabled = player.score > 0,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color.White,
                             ),
@@ -305,7 +299,10 @@ fun BodyContent(
                             )
                         }
                         Spacer(modifier = Modifier.weight(1f))
-                        Column {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        ){
                             Text(
                                 text = "score",
                                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -313,10 +310,13 @@ fun BodyContent(
                                 color = Color.White,
                             )
                             Text(
-                                text = "  ${counts[index]}",
+                                text = "${player.score}",
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)
-                                    .clickable { openDialogToEdit() },
+                                    .clickable {
+                                        editPlayer = player
+                                        showEditScoreDialog = true
+                                      },
                                 fontSize = 30.sp,
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold
@@ -324,9 +324,9 @@ fun BodyContent(
                         }
                         Spacer(modifier = Modifier.weight(1f))
                         Button(
-                            onClick = { onIncrement(index) },
+                            onClick = { onIncrement(player) },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor  = Color.White
+                                containerColor = Color.White
                             ),
                             modifier = Modifier.padding(16.dp)
                         ) {
@@ -343,25 +343,24 @@ fun BodyContent(
         }
     }
 
-    if (showDialog) {
-        newItemTextAfter = itemNames.get(index = clickIndexItemToEdit.value)
-        var color = remember {
-            viewModel.getColorForItem(clickIndexItemToEdit.value)
-        }
-        val controller : ColorPickerController = ColorPickerController()
+    if (showDialog && editPlayer != null) {
+        val player = editPlayer!!
+        var newName by remember { mutableStateOf(player.name) }
+        var color by remember { mutableStateOf(Color(player.color)) }
+        val controller: ColorPickerController = ColorPickerController()
+
         AlertDialog(
             onDismissRequest = { showDialog = false },
-            title = { Text(text = "Edit") },
+            title = { Text(text = "Edit Player") },
             text = {
                 Column {
                     Text("Enter name:")
                     Spacer(modifier = Modifier.height(8.dp))
                     TextField(
-                        value = newItemTextAfter,
+                        value = newName,
                         onValueChange = {
-                            newItemTextAfter = it
-                            viewModel.itemNames[clickIndexItemToEdit.value] = newItemTextAfter
-                                        },
+                            newName = it
+                        },
                         label = { Text("Name") },
                         singleLine = true
                     )
@@ -377,15 +376,13 @@ fun BodyContent(
                         }
                     )
                 }
-            }
-            ,confirmButton = {
+            },
+            confirmButton = {
                 TextButton(
                     onClick = {
-                        if (newItemTextAfter.isNotBlank()) {
-                            newItemNames.add(newItemTextAfter)
-                            newItemTextAfter = ""
-                            if(color != Color(0, 0, 0, 0))
-                                viewModel.editColor(clickIndexItemToEdit.value,color)
+                        if (newName.isNotBlank()) {
+                            viewModel.updatePlayer(player.copy(name = newName, color = color.toArgb()))
+                            viewModel.editColor(playerList.indexOf(player), color)
                             showDialog = false
                         }
                     }
@@ -402,8 +399,66 @@ fun BodyContent(
             }
         )
     }
+
+
+// dialog to edit
+    OpenDialogToEdit(
+        showDialog = showEditScoreDialog,
+        onDismiss = { showEditScoreDialog = false },
+        player = editPlayer,
+        onConfirm = { newScore ->
+            if (editPlayer != null) {
+                viewModel.updatePlayer(editPlayer!!.copy(score = newScore))
+                showEditScoreDialog = false
+            }
+        }
+    )
 }
 
-fun openDialogToEdit() {
 
+@Composable
+fun OpenDialogToEdit(
+    showDialog: Boolean,
+    onDismiss: () -> Unit,
+    player: PlayerModel?,
+    onConfirm: (Int) -> Unit
+) {
+    if (showDialog && player != null) {
+        var newScore by remember { mutableStateOf(player.score.toString()) }
+
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(text = "Edit Score") },
+            text = {
+                Column {
+                    Text("Enter new score:")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextField(
+                        value = newScore,
+                        onValueChange = { newScore = it },
+                        label = { Text("Score") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val score = newScore.toIntOrNull()
+                        if (score != null) {
+                            onConfirm(score)
+                        }
+                    }
+                ) {
+                    Text("Confirm")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }

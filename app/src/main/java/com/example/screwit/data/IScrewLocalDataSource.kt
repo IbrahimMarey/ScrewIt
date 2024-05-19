@@ -9,6 +9,6 @@ interface IScrewLocalDataSource {
     suspend fun insertPlayer(player: PlayerModel)
     suspend fun updatePlayerScore(playerName: String, newScore: Int)
     suspend fun getPlayerByName(playerName: String): PlayerModel?
-
+    suspend fun updatePlayer(player: PlayerModel)
 
 }

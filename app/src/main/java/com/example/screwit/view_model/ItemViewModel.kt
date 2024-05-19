@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
@@ -13,6 +14,8 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.example.screwit.data.IScrewLocalDataSource
 import com.example.screwit.model.PlayerModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.random.Random
@@ -21,8 +24,8 @@ class ItemViewModel(val local : IScrewLocalDataSource) : ViewModel() {
     private val itemColors = mutableMapOf<Int, Color>()
     val itemNames =  mutableStateListOf<String>()
 
-    private var _playersList = mutableStateListOf<PlayerModel>()
-    val playerList: List<PlayerModel> get() = _playersList
+    private val _playerList = MutableStateFlow<List<PlayerModel>>(emptyList())
+    val playerList: StateFlow<List<PlayerModel>> get() = _playerList
 
     init {
         getAllPlayers()
@@ -38,14 +41,39 @@ class ItemViewModel(val local : IScrewLocalDataSource) : ViewModel() {
         }
     }
 
+    fun updatePlayer(player: PlayerModel) {
+        viewModelScope.launch {
+            local.updatePlayer(player)
+            getAllPlayers()
+        }
+    }
+    fun addPlayer(name: String) {
+        viewModelScope.launch {
+            val newPlayer = PlayerModel(name = name, score = 0, color = generateRandomColor().toArgb())
+            local.insertPlayer(newPlayer)
+            getAllPlayers()
+        }
+    }
 
-    fun getAllPlayers(){
-        viewModelScope.launch(Dispatchers.IO) {
-            val players = local.getAllPlayers()
-            withContext(Dispatchers.Main){
-                _playersList.clear()
-                _playersList.addAll(players)
-            }
+    fun incrementScore(player: PlayerModel) {
+        viewModelScope.launch {
+            val updatedPlayer = player.copy(score = player.score + 1)
+            local.updatePlayer(updatedPlayer)
+            getAllPlayers()
+        }
+    }
+
+    fun decrementScore(player: PlayerModel) {
+        viewModelScope.launch {
+            val updatedPlayer = player.copy(score = player.score - 1)
+            local.updatePlayer(updatedPlayer)
+            getAllPlayers()
+        }
+    }
+
+    fun getAllPlayers() {
+        viewModelScope.launch {
+            _playerList.value = local.getAllPlayers()
         }
     }
 
@@ -92,10 +120,5 @@ class ItemViewModel(val local : IScrewLocalDataSource) : ViewModel() {
                 }
             }
         }
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        insertAllPlayers(_playersList)
     }
 }
