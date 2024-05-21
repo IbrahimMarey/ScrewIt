@@ -20,6 +20,9 @@ interface PlayerDao {
 
    @Delete
    suspend fun deleteAllPlayers(players: List<PlayerModel>)
+
+   @Delete
+   suspend fun deletePlayer(player: PlayerModel)
    @Query("UPDATE player SET score = :newScore WHERE name = :playerName")
    suspend fun updatePlayerScore(playerName: String, newScore: Int)
 

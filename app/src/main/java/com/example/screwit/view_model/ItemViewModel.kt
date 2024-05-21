@@ -1,26 +1,20 @@
 package com.example.screwit.view_model
 
-import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
-import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.CreationExtras
 import com.example.screwit.data.IScrewLocalDataSource
 import com.example.screwit.model.PlayerModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.random.Random
 
-class ItemViewModel(val local : IScrewLocalDataSource) : ViewModel() {
+class ItemViewModel(private val local : IScrewLocalDataSource) : ViewModel() {
     private val itemColors = mutableMapOf<Int, Color>()
     val itemNames =  mutableStateListOf<String>()
 
@@ -71,7 +65,7 @@ class ItemViewModel(val local : IScrewLocalDataSource) : ViewModel() {
         }
     }
 
-    fun getAllPlayers() {
+    private fun getAllPlayers() {
         viewModelScope.launch {
             _playerList.value = local.getAllPlayers()
         }
@@ -86,6 +80,19 @@ class ItemViewModel(val local : IScrewLocalDataSource) : ViewModel() {
     fun deleteAllPlayers(players: List<PlayerModel>) {
         viewModelScope.launch(Dispatchers.IO) {
             local.deleteAllPlayer(players)
+            getAllPlayers()
+        }
+    }
+
+    fun resetAllPlayers() {
+        viewModelScope.launch(Dispatchers.IO) {
+            viewModelScope.launch {
+                playerList.value.forEach { player ->
+                    val updatedPlayer = player.copy(score = 0)
+                    local.updatePlayer(updatedPlayer)
+                }
+                getAllPlayers()
+            }
         }
     }
 
