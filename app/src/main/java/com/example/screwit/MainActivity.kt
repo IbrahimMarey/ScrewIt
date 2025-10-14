@@ -44,11 +44,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -122,8 +120,8 @@ class MainActivity : ComponentActivity() {
             },
             topBar = {
                 TopAppBar(
-                    colors = TopAppBarDefaults.smallTopAppBarColors(containerColor = Color(0, 0, 0, 3)),
-                    title = { Text("Screw Score", color = Color.White) },
+//                    colors = TopAppBarDefaults.smallTopAppBarColors(containerColor = Color(0, 0, 0, 3)),
+                    title = { Text(getString(R.string.app_name), color = Color.White) },
                     actions = {
                         IconButton(onClick = {
                             if (playerList.isEmpty())
@@ -273,12 +271,9 @@ class MainActivity : ComponentActivity() {
         modifier: Modifier = Modifier,
         content: @Composable () -> Unit
     ) {
-        var topAppBarHeight by remember { mutableIntStateOf(0) }
-
         Box(
             modifier
                 .onGloballyPositioned { coordinates ->
-                    topAppBarHeight = coordinates.size.height
                 }
         ) {
             content()
